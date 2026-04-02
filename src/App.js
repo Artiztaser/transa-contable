@@ -1,4 +1,5 @@
  import React, { useEffect, useMemo, useState } from 'react';
+ import { supabase } from './lib/supabase';
 import {
 BarChart,
 Bar,
@@ -52,6 +53,8 @@ address: 'C/ Solana de Luche, 20, 28011 Madrid',
 
 const APP_NAME = 'Transa Contable';
 const APP_TAGLINE = 'Contabilidad de Bela Transa';
+
+const USE_SUPABASE = true;
 
 const EMPTY_INVOICE_ITEM = {
 description: '',
@@ -3016,16 +3019,123 @@ const [invoices, setInvoices] = useState([]);
 const [purchaseInvoices, setPurchaseInvoices] = useState([]);
 const [expenses, setExpenses] = useState([]);
 
+useEffect(() => {
+  const loadSupabaseData = async () => {
+    if (!USE_SUPABASE) return;
+
+    const [
+      { data: clientsData, error: clientsError },
+      { data: invoicesData, error: invoicesError },
+      { data: purchaseInvoicesData, error: purchaseInvoicesError },
+      { data: expensesData, error: expensesError },
+    ] = await Promise.all([
+      supabase.from('clients').select('*').order('created_at', { ascending: true }),
+      supabase.from('invoices').select('*').order('created_at', { ascending: true }),
+      supabase.from('purchase_invoices').select('*').order('created_at', { ascending: true }),
+      supabase.from('expenses').select('*').order('created_at', { ascending: true }),
+    ]);
+
+    if (clientsError) console.error('Error cargando clientes:', clientsError);
+    if (invoicesError) console.error('Error cargando facturas:', invoicesError);
+    if (purchaseInvoicesError) console.error('Error cargando facturas recibidas:', purchaseInvoicesError);
+    if (expensesError) console.error('Error cargando gastos:', expensesError);
+
+    if (clientsData) {
+      setClients(
+        clientsData.map((client) => ({
+          id: client.id,
+          fiscalName: client.fiscal_name,
+          commercialName: client.commercial_name,
+          cif: client.cif,
+          email: client.email,
+          phone: client.phone,
+          address: client.address,
+          city: client.city,
+          postalCode: client.postal_code,
+          country: client.country,
+          contactPerson: client.contact_person,
+          clientType: client.client_type,
+          notes: client.notes,
+          createdAt: client.created_at,
+        }))
+      );
+    }
+
+    if (invoicesData) {
+      setInvoices(
+        invoicesData.map((invoice) => ({
+          id: invoice.id,
+          invoiceNumber: invoice.invoice_number,
+          clientId: invoice.client_id,
+          issueDate: invoice.issue_date,
+          dueDate: invoice.due_date,
+          paymentDate: invoice.payment_date,
+          orderNumber: invoice.order_number,
+          visibleNotes: invoice.visible_notes,
+          internalNotes: invoice.internal_notes,
+          status: invoice.status,
+          subtotal: invoice.subtotal,
+          totalTax: invoice.total_tax,
+          retentionPercentage: invoice.retention_percentage,
+          retentionAmount: invoice.retention_amount,
+          total: invoice.total,
+          items: invoice.items || [],
+          createdAt: invoice.created_at,
+        }))
+      );
+    }
+
+    if (purchaseInvoicesData) {
+      setPurchaseInvoices(
+        purchaseInvoicesData.map((item) => ({
+          id: item.id,
+          issuerName: item.issuer_name,
+          issuerTaxId: item.issuer_tax_id,
+          issueDate: item.issue_date,
+          paymentDate: item.payment_date,
+          concept: item.concept,
+          category: item.category,
+          taxableBase: item.taxable_base,
+          taxPercentage: item.tax_percentage,
+          taxAmount: item.tax_amount,
+          withholdingPercentage: item.withholding_percentage,
+          withholdingAmount: item.withholding_amount,
+          total: item.total,
+          notes: item.notes,
+          attachmentName: item.attachment_name,
+          paymentStatus: item.payment_status,
+          createdAt: item.created_at,
+        }))
+      );
+    }
+
+    if (expensesData) {
+      setExpenses(
+        expensesData.map((item) => ({
+          id: item.id,
+          description: item.description,
+          category: item.category,
+          issueDate: item.issue_date,
+          paymentDate: item.payment_date,
+          taxableBase: item.taxable_base,
+          taxPercentage: item.tax_percentage,
+          taxAmount: item.tax_amount,
+          total: item.total,
+          notes: item.notes,
+          receiptName: item.receipt_name,
+          hasReceipt: item.has_receipt,
+          createdAt: item.created_at,
+        }))
+      );
+    }
+  };
+
+  loadSupabaseData();
+}, []);
+
 // Estado para modal de confirmación de borrado
 const [deleteConfirmation, setDeleteConfirmation] = useState(null);
 
-useEffect(() => {
-setUser(safeParse(localStorage.getItem(STORAGE_KEYS.user), null));
-setClients(safeParse(localStorage.getItem(STORAGE_KEYS.clients), []));
-setInvoices(safeParse(localStorage.getItem(STORAGE_KEYS.invoices), []));
-setPurchaseInvoices(safeParse(localStorage.getItem(STORAGE_KEYS.purchaseInvoices), []));
-setExpenses(safeParse(localStorage.getItem(STORAGE_KEYS.expenses), []));
-}, []);
 
 const handleGoogleAuth = () => {
 const authUser = {
@@ -3077,6 +3187,8 @@ saveToStorage(STORAGE_KEYS.expenses, demo.expenses);
 
 };
 
+
+
 const handleLogout = () => {
 setUser(null);
 localStorage.removeItem(STORAGE_KEYS.user);
@@ -3127,46 +3239,91 @@ alert('✅ Todos los datos han sido eliminados.');
 
 };
 
-const addClient = (clientData) => {
-const newClient = {
-id: Date.now().toString(),
-...clientData,
-createdAt: new Date().toISOString(),
-};
-const updated = [...clients, newClient];
-setClients(updated);
-saveToStorage(STORAGE_KEYS.clients, updated);
-};
+const addClient = async (clientData) => {
+  const newClient = {
+    id: Date.now().toString(),
+    ...clientData,
+    createdAt: new Date().toISOString(),
+  };
 
-const deleteClient = (id) => {
-const hasInvoices = invoices.some((invoice) => invoice.clientId === id);
-
-
-if (hasInvoices) {
-  setDeleteConfirmation({
-    type: 'error',
-    id,
-    name: 'No se puede eliminar',
-    message: 'Este cliente tiene facturas asociadas. Elimina las facturas primero.',
-    onConfirm: () => setDeleteConfirmation(null),
-  });
-  return;
-}
-
-const client = clients.find((c) => c.id === id);
-setDeleteConfirmation({
-  type: 'client',
-  id,
-  name: `Cliente: ${client?.commercialName || client?.fiscalName || 'desconocido'}`,
-  onConfirm: () => {
-    const updated = clients.filter((client) => client.id !== id);
+  if (!USE_SUPABASE) {
+    const updated = [...clients, newClient];
     setClients(updated);
     saveToStorage(STORAGE_KEYS.clients, updated);
-    setDeleteConfirmation(null);
-  },
-});
+    return true;
+  }
 
+  const payload = {
+    id: newClient.id,
+    fiscal_name: newClient.fiscalName,
+    commercial_name: newClient.commercialName,
+    cif: newClient.cif,
+    email: newClient.email,
+    phone: newClient.phone,
+    address: newClient.address,
+    city: newClient.city,
+    postal_code: newClient.postalCode,
+    country: newClient.country,
+    contact_person: newClient.contactPerson,
+    client_type: newClient.clientType,
+    notes: newClient.notes,
+    created_at: newClient.createdAt,
+  };
 
+  const { error } = await supabase.from('clients').insert(payload);
+
+  if (error) {
+    console.error('Error guardando cliente en Supabase:', error);
+    alert('No se pudo guardar el cliente en Supabase.');
+    return false;
+  }
+
+  const updated = [...clients, newClient];
+  setClients(updated);
+  return true;
+};
+const deleteClient = (id) => {
+  const hasInvoices = invoices.some((invoice) => invoice.clientId === id);
+
+  if (hasInvoices) {
+    setDeleteConfirmation({
+      type: 'error',
+      id,
+      name: 'No se puede eliminar',
+      message: 'Este cliente tiene facturas asociadas. Elimina las facturas primero.',
+      onConfirm: () => setDeleteConfirmation(null),
+    });
+    return;
+  }
+
+  const client = clients.find((c) => c.id === id);
+
+  setDeleteConfirmation({
+    type: 'client',
+    id,
+    name: `Cliente: ${client?.commercialName || client?.fiscalName || 'desconocido'}`,
+    onConfirm: async () => {
+      if (!USE_SUPABASE) {
+        const updated = clients.filter((client) => client.id !== id);
+        setClients(updated);
+        saveToStorage(STORAGE_KEYS.clients, updated);
+        setDeleteConfirmation(null);
+        return;
+      }
+
+      const { error } = await supabase.from('clients').delete().eq('id', id);
+
+      if (error) {
+        console.error('Error eliminando cliente en Supabase:', error);
+        alert('No se pudo eliminar el cliente en Supabase.');
+        return;
+      }
+
+      const updated = clients.filter((client) => client.id !== id);
+      setClients(updated);
+      setDeleteConfirmation(null);
+    },
+  });
 };
 
 const createInvoice = (form, status) => {
@@ -3175,6 +3332,8 @@ const validItems = form.items.filter(
 item.description.trim() !== '' &&
 Number(item.baseAmount) > 0
 );
+
+
 
 
 const totals = calculateInvoiceTotals(validItems, form.retentionPercentage);
@@ -3203,131 +3362,375 @@ const invoice = {
 const updated = [...invoices, invoice];
 setInvoices(updated);
 saveToStorage(STORAGE_KEYS.invoices, updated);
+
+if (USE_SUPABASE) {
+  saveInvoiceToSupabase(invoice);
+}
+
 setCurrentPage('emitted-invoices');
 return true;
 
 
 };
 
+const saveInvoiceToSupabase = async (invoice) => {
+  const payload = {
+    id: invoice.id,
+    invoice_number: invoice.invoiceNumber,
+    client_id: invoice.clientId,
+    issue_date: invoice.issueDate,
+    due_date: invoice.dueDate || null,
+    payment_date: invoice.paymentDate,
+    order_number: invoice.orderNumber,
+    visible_notes: invoice.visibleNotes,
+    internal_notes: invoice.internalNotes,
+    status: invoice.status,
+    subtotal: invoice.subtotal,
+    total_tax: invoice.totalTax,
+    retention_percentage: invoice.retentionPercentage,
+    retention_amount: invoice.retentionAmount,
+    total: invoice.total,
+    items: invoice.items,
+    created_at: invoice.createdAt,
+  };
+
+  const { error } = await supabase.from('invoices').insert(payload);
+
+  if (error) {
+    console.error('Error guardando factura en Supabase:', error);
+    return { ok: false, error };
+  }
+
+  return { ok: true };
+};
+
 const deleteInvoice = (id) => {
-const invoice = invoices.find((inv) => inv.id === id);
-setDeleteConfirmation({
-type: 'invoice',
-id,
-name: `Factura ${invoice?.invoiceNumber || 'desconocida'}`,
-onConfirm: () => {
-const updated = invoices.filter((invoice) => invoice.id !== id);
-setInvoices(updated);
-saveToStorage(STORAGE_KEYS.invoices, updated);
-setDeleteConfirmation(null);
-},
-});
+  const invoice = invoices.find((inv) => inv.id === id);
+
+  setDeleteConfirmation({
+    type: 'invoice',
+    id,
+    name: `Factura ${invoice?.invoiceNumber || 'desconocida'}`,
+    onConfirm: async () => {
+      if (!USE_SUPABASE) {
+        const updated = invoices.filter((invoice) => invoice.id !== id);
+        setInvoices(updated);
+        saveToStorage(STORAGE_KEYS.invoices, updated);
+        setDeleteConfirmation(null);
+        return;
+      }
+
+      const { error } = await supabase.from('invoices').delete().eq('id', id);
+
+      if (error) {
+        console.error('Error eliminando factura en Supabase:', error);
+        alert('No se pudo eliminar la factura en Supabase.');
+        return;
+      }
+
+      const updated = invoices.filter((invoice) => invoice.id !== id);
+      setInvoices(updated);
+      setDeleteConfirmation(null);
+    },
+  });
 };
 
-const markInvoiceAsPaid = (id) => {
-const updated = invoices.map((invoice) =>
-invoice.id === id
-? {
-...invoice,
-status: 'paid',
-paymentDate: getToday(),
-}
-: invoice
-);
-setInvoices(updated);
-saveToStorage(STORAGE_KEYS.invoices, updated);
+const markInvoiceAsPaid = async (id) => {
+  const updated = invoices.map((invoice) =>
+    invoice.id === id
+      ? {
+          ...invoice,
+          status: 'paid',
+          paymentDate: getToday(),
+        }
+      : invoice
+  );
+
+  const updatedInvoice = updated.find((invoice) => invoice.id === id);
+
+  if (!USE_SUPABASE) {
+    setInvoices(updated);
+    saveToStorage(STORAGE_KEYS.invoices, updated);
+    return;
+  }
+
+  const { error } = await supabase
+    .from('invoices')
+    .update({
+      status: updatedInvoice.status,
+      payment_date: updatedInvoice.paymentDate,
+    })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error marcando factura como pagada en Supabase:', error);
+    alert('No se pudo actualizar la factura en Supabase.');
+    return;
+  }
+
+  setInvoices(updated);
 };
 
-const markInvoiceAsSent = (id) => {
-const updated = invoices.map((invoice) =>
-invoice.id === id
-? {
-...invoice,
-status: 'sent',
-}
-: invoice
-);
-setInvoices(updated);
-saveToStorage(STORAGE_KEYS.invoices, updated);
+const markInvoiceAsSent = async (id) => {
+  const updated = invoices.map((invoice) =>
+    invoice.id === id
+      ? {
+          ...invoice,
+          status: 'sent',
+        }
+      : invoice
+  );
+
+  const updatedInvoice = updated.find((invoice) => invoice.id === id);
+
+  if (!USE_SUPABASE) {
+    setInvoices(updated);
+    saveToStorage(STORAGE_KEYS.invoices, updated);
+    return;
+  }
+
+  const { error } = await supabase
+    .from('invoices')
+    .update({
+      status: updatedInvoice.status,
+    })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error marcando factura como emitida en Supabase:', error);
+    alert('No se pudo actualizar la factura en Supabase.');
+    return;
+  }
+
+  setInvoices(updated);
 };
 
-const markInvoiceAsUnpaid = (id) => {
-const updated = invoices.map((invoice) =>
-invoice.id === id
-? {
-...invoice,
-status: 'sent',
-paymentDate: null,
-}
-: invoice
-);
-setInvoices(updated);
-saveToStorage(STORAGE_KEYS.invoices, updated);
+const markInvoiceAsUnpaid = async (id) => {
+  const updated = invoices.map((invoice) =>
+    invoice.id === id
+      ? {
+          ...invoice,
+          status: 'sent',
+          paymentDate: null,
+        }
+      : invoice
+  );
+
+  const updatedInvoice = updated.find((invoice) => invoice.id === id);
+
+  if (!USE_SUPABASE) {
+    setInvoices(updated);
+    saveToStorage(STORAGE_KEYS.invoices, updated);
+    return;
+  }
+
+  const { error } = await supabase
+    .from('invoices')
+    .update({
+      status: updatedInvoice.status,
+      payment_date: null,
+    })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error desmarcando factura como pagada en Supabase:', error);
+    alert('No se pudo actualizar la factura en Supabase.');
+    return;
+  }
+
+  setInvoices(updated);
 };
 
-const addPurchaseInvoice = (invoiceData) => {
-const newItem = {
-id: Date.now().toString(),
-...invoiceData,
-createdAt: new Date().toISOString(),
-};
-const updated = [...purchaseInvoices, newItem];
-setPurchaseInvoices(updated);
-saveToStorage(STORAGE_KEYS.purchaseInvoices, updated);
+const addPurchaseInvoice = async (invoiceData) => {
+  const newItem = {
+    id: Date.now().toString(),
+    ...invoiceData,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (!USE_SUPABASE) {
+    const updated = [...purchaseInvoices, newItem];
+    setPurchaseInvoices(updated);
+    saveToStorage(STORAGE_KEYS.purchaseInvoices, updated);
+    return;
+  }
+
+  const payload = {
+    id: newItem.id,
+    issuer_name: newItem.issuerName,
+    issuer_tax_id: newItem.issuerTaxId,
+    issue_date: newItem.issueDate,
+    payment_date: newItem.paymentDate || null,
+    concept: newItem.concept,
+    category: newItem.category,
+    taxable_base: newItem.taxableBase,
+    tax_percentage: newItem.taxPercentage,
+    tax_amount: newItem.taxAmount,
+    withholding_percentage: newItem.withholdingPercentage,
+    withholding_amount: newItem.withholdingAmount,
+    total: newItem.total,
+    notes: newItem.notes,
+    attachment_name: newItem.attachmentName,
+    payment_status: newItem.paymentStatus,
+    created_at: newItem.createdAt,
+  };
+
+  const { error } = await supabase.from('purchase_invoices').insert(payload);
+
+  if (error) {
+    console.error('Error guardando factura recibida en Supabase:', error);
+    alert('No se pudo guardar la factura recibida en Supabase.');
+    return;
+  }
+
+  setPurchaseInvoices([...purchaseInvoices, newItem]);
 };
 
 const deletePurchaseInvoice = (id) => {
-const purchase = purchaseInvoices.find((item) => item.id === id);
-setDeleteConfirmation({
-type: 'purchaseInvoice',
-id,
-name: `Factura recibida de ${purchase?.issuerName || 'desconocido'}`,
-onConfirm: () => {
-const updated = purchaseInvoices.filter((item) => item.id !== id);
-setPurchaseInvoices(updated);
-saveToStorage(STORAGE_KEYS.purchaseInvoices, updated);
-setDeleteConfirmation(null);
-},
-});
+  const purchase = purchaseInvoices.find((item) => item.id === id);
+
+  setDeleteConfirmation({
+    type: 'purchaseInvoice',
+    id,
+    name: `Factura recibida de ${purchase?.issuerName || 'desconocido'}`,
+    onConfirm: async () => {
+      if (!USE_SUPABASE) {
+        const updated = purchaseInvoices.filter((item) => item.id !== id);
+        setPurchaseInvoices(updated);
+        saveToStorage(STORAGE_KEYS.purchaseInvoices, updated);
+        setDeleteConfirmation(null);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('purchase_invoices')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error eliminando factura recibida en Supabase:', error);
+        alert('No se pudo eliminar la factura recibida en Supabase.');
+        return;
+      }
+
+      const updated = purchaseInvoices.filter((item) => item.id !== id);
+      setPurchaseInvoices(updated);
+      setDeleteConfirmation(null);
+    },
+  });
 };
 
-const markPurchaseInvoicePaid = (id) => {
-const updated = purchaseInvoices.map((item) =>
-item.id === id
-? {
-...item,
-paymentStatus: 'paid',
-paymentDate: item.paymentDate || getToday(),
-}
-: item
-);
-setPurchaseInvoices(updated);
-saveToStorage(STORAGE_KEYS.purchaseInvoices, updated);
+const markPurchaseInvoicePaid = async (id) => {
+  const updated = purchaseInvoices.map((item) =>
+    item.id === id
+      ? {
+          ...item,
+          paymentStatus: 'paid',
+          paymentDate: item.paymentDate || getToday(),
+        }
+      : item
+  );
+
+  const updatedItem = updated.find((item) => item.id === id);
+
+  if (!USE_SUPABASE) {
+    setPurchaseInvoices(updated);
+    saveToStorage(STORAGE_KEYS.purchaseInvoices, updated);
+    return;
+  }
+
+  const { error } = await supabase
+    .from('purchase_invoices')
+    .update({
+      payment_status: updatedItem.paymentStatus,
+      payment_date: updatedItem.paymentDate,
+    })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error marcando factura recibida como pagada en Supabase:', error);
+    alert('No se pudo actualizar la factura recibida en Supabase.');
+    return;
+  }
+
+  setPurchaseInvoices(updated);
 };
 
-const markPurchaseInvoiceUnpaid = (id) => {
-const updated = purchaseInvoices.map((item) =>
-item.id === id
-? {
-...item,
-paymentStatus: 'pending',
-paymentDate: null,
-}
-: item
-);
-setPurchaseInvoices(updated);
-saveToStorage(STORAGE_KEYS.purchaseInvoices, updated);
+const markPurchaseInvoiceUnpaid = async (id) => {
+  const updated = purchaseInvoices.map((item) =>
+    item.id === id
+      ? {
+          ...item,
+          paymentStatus: 'pending',
+          paymentDate: null,
+        }
+      : item
+  );
+
+  const updatedItem = updated.find((item) => item.id === id);
+
+  if (!USE_SUPABASE) {
+    setPurchaseInvoices(updated);
+    saveToStorage(STORAGE_KEYS.purchaseInvoices, updated);
+    return;
+  }
+
+  const { error } = await supabase
+    .from('purchase_invoices')
+    .update({
+      payment_status: updatedItem.paymentStatus,
+      payment_date: null,
+    })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error desmarcando factura recibida como pagada en Supabase:', error);
+    alert('No se pudo actualizar la factura recibida en Supabase.');
+    return;
+  }
+
+  setPurchaseInvoices(updated);
 };
 
-const addExpense = (expenseData) => {
-const newExpense = {
-id: Date.now().toString(),
-...expenseData,
-createdAt: new Date().toISOString(),
-};
-const updated = [...expenses, newExpense];
-setExpenses(updated);
-saveToStorage(STORAGE_KEYS.expenses, updated);
+const addExpense = async (expenseData) => {
+  const newExpense = {
+    id: Date.now().toString(),
+    ...expenseData,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (!USE_SUPABASE) {
+    const updated = [...expenses, newExpense];
+    setExpenses(updated);
+    saveToStorage(STORAGE_KEYS.expenses, updated);
+    return;
+  }
+
+  const payload = {
+    id: newExpense.id,
+    description: newExpense.description,
+    category: newExpense.category,
+    issue_date: newExpense.issueDate,
+    payment_date: newExpense.paymentDate || null,
+    taxable_base: newExpense.taxableBase,
+    tax_percentage: newExpense.taxPercentage,
+    tax_amount: newExpense.taxAmount,
+    total: newExpense.total,
+    notes: newExpense.notes,
+    receipt_name: newExpense.receiptName,
+    has_receipt: newExpense.hasReceipt,
+    created_at: newExpense.createdAt,
+  };
+
+  const { error } = await supabase.from('expenses').insert(payload);
+
+  if (error) {
+    console.error('Error guardando gasto en Supabase:', error);
+    alert('No se pudo guardar el gasto en Supabase.');
+    return;
+  }
+
+  setExpenses([...expenses, newExpense]);
 };
 
 const deleteExpense = (id) => {
@@ -3361,10 +3764,10 @@ return (
 <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
 <div className="flex items-center gap-4">
 <button
-onClick={() => setSidebarOpen(!sidebarOpen)}
-className="text-gray-600 hover:text-gray-800 lg:hidden transition"
+  onClick={() => setSidebarOpen(!sidebarOpen)}
+  className="text-gray-600 hover:text-gray-800 transition"
 >
-{sidebarOpen ? <X size={24} /> : <Menu size={24} />}
+  {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
 </button>
 
 
@@ -3377,23 +3780,27 @@ className="text-gray-600 hover:text-gray-800 lg:hidden transition"
       </div>
 
       <div className="flex items-center gap-4">
-        <span className="text-sm text-gray-600 hidden md:block">{user.name}</span>
-        <button
-          onClick={handleExportData}
-          className="text-blue-600 hover:text-blue-800 flex items-center gap-1 transition"
-          title="Descargar backup de datos"
-        >
-          <Download size={18} />
-        </button>
-        <button
-          onClick={handleLogout}
-          className="text-red-600 hover:text-red-800 flex items-center gap-1 transition"
-        >
-          <LogOut size={18} /> Salir
-        </button>
-      </div>
-    </div>
-  </header>
+  <span className="text-sm text-gray-600 hidden md:block">{user.name}</span>
+
+ 
+
+  <button
+    onClick={handleExportData}
+    className="text-blue-600 hover:text-blue-800 flex items-center gap-1 transition"
+    title="Descargar backup de datos"
+  >
+    <Download size={18} />
+  </button>
+
+  <button
+  onClick={handleLogout}
+  className="text-red-600 hover:text-red-800 flex items-center gap-1 transition"
+>
+  <LogOut size={18} /> Salir
+</button>
+</div>
+</div>
+</header>
 
   <div className="flex relative">
     {sidebarOpen && (
