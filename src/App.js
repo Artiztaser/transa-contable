@@ -359,21 +359,7 @@ return `FAC-${year}-${paddedNumber}`;
 
 
 
-const nextNumber = generateInvoiceNumber(mockInvoices, '2026-01-01');
-const isCorrect = nextNumber === 'FAC-2026-004';
 
-console.log('✓ TEST: Generación de números de factura');
-console.log(`  Facturas existentes: 001, 002, 003`);
-console.log(`  Siguiente número generado: ${nextNumber}`);
-console.log(`  Resultado: ${isCorrect ? '✅ CORRECTO' : '❌ ERROR'}`);
-
-return isCorrect;
-};
-
-// Ejecutar prueba al cargar (comentado para no spam en consola)
-// if (typeof testInvoiceNumberGeneration === 'function') {
-//   testInvoiceNumberGeneration();
-// }
 
 const createDemoData = () => {
 const clients = [
