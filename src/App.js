@@ -357,13 +357,7 @@ return `FAC-${year}-${paddedNumber}`;
 // → retorna: FAC-2026-004 ✓
 };
 
-// FUNCIÓN DE PRUEBA - Verifica que los números se generan correctamente
-const testInvoiceNumberGeneration = () => {
-const mockInvoices = [
-{ invoiceNumber: 'FAC-2026-001' },
-{ invoiceNumber: 'FAC-2026-002' },
-{ invoiceNumber: 'FAC-2026-003' },
-];
+
 
 const nextNumber = generateInvoiceNumber(mockInvoices, '2026-01-01');
 const isCorrect = nextNumber === 'FAC-2026-004';
@@ -2529,12 +2523,8 @@ const today = new Date();
 const currentMonth = today.getMonth();
 const currentYear = today.getFullYear();
 
-const lastMonthData = invoices
-.filter((inv) => {
-const d = new Date(inv.issueDate);
-return d.getMonth() === (currentMonth - 1 + 12) % 12 && d.getFullYear() === currentYear;
-})
-.reduce((sum, inv) => sum + Number(inv.total || 0), 0);
+
+
 
 const monthlyAverage = invoices
 .slice(-12)
