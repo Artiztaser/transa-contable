@@ -152,13 +152,6 @@ if (Number.isNaN(d.getTime())) return '-';
 return d.toLocaleDateString('es-ES');
 };
 
-const safeParse = (value, fallback) => {
-try {
-return value ? JSON.parse(value) : fallback;
-} catch {
-return fallback;
-}
-};
 
 const saveToStorage = (key, value) => {
 try {
