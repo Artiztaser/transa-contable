@@ -1074,13 +1074,15 @@ className="border-2 border-gray-200 rounded-lg px-4 py-2.5 font-medium text-gray
 }
 
 function InvoicesPage({
-invoices,
-clients,
-onGoCreate,
-onDelete,
-onMarkAsPaid,
-onMarkAsUnpaid,
-onMarkAsSent,
+  invoices,
+  clients,
+  paymentNote,
+  onSavePaymentNote,
+  onGoCreate,
+  onDelete,
+  onMarkAsPaid,
+  onMarkAsUnpaid,
+  onMarkAsSent,
 }) {
 const [searchTerm, setSearchTerm] = useState('');
 const [previewInvoice, setPreviewInvoice] = useState(null);
@@ -1117,6 +1119,30 @@ className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 h
 >
 <Plus size={18} /> Nueva factura
 </button>
+</div>
+
+<div className="bg-white rounded-lg shadow p-4 space-y-3">
+  <div className="flex items-center justify-between gap-4 flex-wrap">
+    <div>
+      <h3 className="font-semibold text-gray-900">Nota bancaria por defecto</h3>
+      <p className="text-sm text-gray-500">
+        Este texto se mostrará por defecto en las facturas.
+      </p>
+    </div>
+    <button
+      onClick={() => onSavePaymentNote(paymentNote)}
+      className="bg-gray-900 text-white px-4 py-2 rounded-lg hover:bg-gray-800 transition"
+    >
+      Guardar nota
+    </button>
+  </div>
+
+  <textarea
+    value={paymentNote}
+    onChange={(e) => onSavePaymentNote(e.target.value)}
+    placeholder="Escribe aquí la nota bancaria por defecto..."
+    className="w-full border rounded-lg px-3 py-2 min-h-[120px]"
+  />
 </div>
 
 
@@ -1375,6 +1401,13 @@ className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 h
               <p className="text-xs md:text-sm whitespace-pre-wrap">{previewInvoice.notes}</p>
             </div>
           )}
+
+          {paymentNote && (
+  <div className="mb-4 md:mb-8 p-3 md:p-4 bg-blue-50 border border-blue-200 rounded-lg">
+    <p className="text-xs md:text-sm font-semibold mb-2">Datos de pago:</p>
+    <p className="text-xs md:text-sm whitespace-pre-wrap">{paymentNote}</p>
+  </div>
+)}
         </div>
 
         {/* Botones de acción */}
@@ -3011,27 +3044,31 @@ const [clients, setClients] = useState([]);
 const [invoices, setInvoices] = useState([]);
 const [purchaseInvoices, setPurchaseInvoices] = useState([]);
 const [expenses, setExpenses] = useState([]);
+const [paymentNote, setPaymentNote] = useState('');
 
 useEffect(() => {
   const loadSupabaseData = async () => {
     if (!USE_SUPABASE) return;
 
     const [
-      { data: clientsData, error: clientsError },
-      { data: invoicesData, error: invoicesError },
-      { data: purchaseInvoicesData, error: purchaseInvoicesError },
-      { data: expensesData, error: expensesError },
-    ] = await Promise.all([
-      supabase.from('clients').select('*').order('created_at', { ascending: true }),
-      supabase.from('invoices').select('*').order('created_at', { ascending: true }),
-      supabase.from('purchase_invoices').select('*').order('created_at', { ascending: true }),
-      supabase.from('expenses').select('*').order('created_at', { ascending: true }),
-    ]);
+  { data: clientsData, error: clientsError },
+  { data: invoicesData, error: invoicesError },
+  { data: purchaseInvoicesData, error: purchaseInvoicesError },
+  { data: expensesData, error: expensesError },
+  { data: settingsData, error: settingsError },
+] = await Promise.all([
+  supabase.from('clients').select('*').order('created_at', { ascending: true }),
+  supabase.from('invoices').select('*').order('created_at', { ascending: true }),
+  supabase.from('purchase_invoices').select('*').order('created_at', { ascending: true }),
+  supabase.from('expenses').select('*').order('created_at', { ascending: true }),
+  supabase.from('app_settings').select('*').eq('id', 'global').single(),
+]);
 
     if (clientsError) console.error('Error cargando clientes:', clientsError);
     if (invoicesError) console.error('Error cargando facturas:', invoicesError);
     if (purchaseInvoicesError) console.error('Error cargando facturas recibidas:', purchaseInvoicesError);
     if (expensesError) console.error('Error cargando gastos:', expensesError);
+    if (settingsError) console.error('Error cargando app_settings:', settingsError);
 
     if (clientsData) {
       setClients(
@@ -3121,6 +3158,10 @@ useEffect(() => {
         }))
       );
     }
+
+    if (settingsData) {
+  setPaymentNote(settingsData.payment_note || '');
+}
   };
 
   loadSupabaseData();
@@ -3185,6 +3226,28 @@ saveToStorage(STORAGE_KEYS.expenses, demo.expenses);
 const handleLogout = () => {
 setUser(null);
 localStorage.removeItem(STORAGE_KEYS.user);
+};
+
+const savePaymentNote = async (newNote) => {
+  setPaymentNote(newNote);
+
+  if (!USE_SUPABASE) return true;
+
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert({
+      id: 'global',
+      payment_note: newNote,
+      updated_at: new Date().toISOString(),
+    });
+
+  if (error) {
+    console.error('Error guardando payment_note en Supabase:', error);
+    alert('No se pudo guardar la nota bancaria.');
+    return false;
+  }
+
+  return true;
 };
 
 // ✅ MEJORA 6: Exportar datos
@@ -3929,16 +3992,18 @@ return (
       )}
 
       {currentPage === 'emitted-invoices' && (
-        <InvoicesPage
-          invoices={invoices}
-          clients={clients}
-          onGoCreate={() => setCurrentPage('create-invoice')}
-          onDelete={deleteInvoice}
-          onMarkAsPaid={markInvoiceAsPaid}
-          onMarkAsUnpaid={markInvoiceAsUnpaid}
-          onMarkAsSent={markInvoiceAsSent}
-        />
-      )}
+  <InvoicesPage
+    invoices={invoices}
+    clients={clients}
+    paymentNote={paymentNote}
+    onSavePaymentNote={savePaymentNote}
+    onGoCreate={() => setCurrentPage('create-invoice')}
+    onDelete={deleteInvoice}
+    onMarkAsPaid={markInvoiceAsPaid}
+    onMarkAsUnpaid={markInvoiceAsUnpaid}
+    onMarkAsSent={markInvoiceAsSent}
+  />
+)}
 
       {currentPage === 'create-invoice' && (
         <CreateInvoicePage
