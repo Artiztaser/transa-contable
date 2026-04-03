@@ -27,7 +27,6 @@ XCircle,
 Send,
 FileText,
 Search,
-AlertCircle,
 Download,
 AlertTriangle,
 Eye,
@@ -3187,55 +3186,6 @@ useEffect(() => {
 const [deleteConfirmation, setDeleteConfirmation] = useState(null);
 
 
-const handleGoogleAuth = () => {
-const authUser = {
-id: 'google-demo',
-name: COMPANY.legalName,
-email: 'empresa@example.com',
-authType: 'google-demo',
-};
-setUser(authUser);
-saveToStorage(STORAGE_KEYS.user, authUser);
-};
-
-const handleLocalLogin = () => {
-const localUser = {
-id: 'local',
-name: COMPANY.legalName,
-email: 'local@example.com',
-authType: 'local',
-};
-setUser(localUser);
-saveToStorage(STORAGE_KEYS.user, localUser);
-};
-
-const handleLoadDemo = () => {
-const demoUser = {
-id: 'demo',
-name: COMPANY.legalName,
-email: 'demo@example.com',
-authType: 'demo',
-};
-
-
-const demo = createDemoData();
-
-setUser(demoUser);
-setClients(demo.clients);
-setInvoices(demo.invoices);
-setPurchaseInvoices(demo.purchaseInvoices);
-setExpenses(demo.expenses);
-setSelectedPeriod('2026');
-setSelectedQuarter('full');
-
-saveToStorage(STORAGE_KEYS.user, demoUser);
-saveToStorage(STORAGE_KEYS.clients, demo.clients);
-saveToStorage(STORAGE_KEYS.invoices, demo.invoices);
-saveToStorage(STORAGE_KEYS.purchaseInvoices, demo.purchaseInvoices);
-saveToStorage(STORAGE_KEYS.expenses, demo.expenses);
-
-
-};
 
 const handleLogin = (username, password) => {
   const validUsername = 'admin';
