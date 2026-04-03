@@ -564,54 +564,70 @@ createdAt: '2026-02-08T10:00:00.000Z',
 return { clients, invoices, purchaseInvoices, expenses };
 };
 
-function LoginScreen({ onGoogleAuth, onLocalLogin, onLoadDemo }) {
-return (
-<div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-800 flex items-center justify-center p-4">
-<div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
-<div className="text-center mb-8">
-<h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
-{APP_NAME}
-</h1>
-<p className="text-gray-600 text-sm font-medium">{APP_TAGLINE}</p>
-<div className="h-1 w-12 bg-gradient-to-r from-indigo-600 to-purple-600 mx-auto mt-4 rounded-full"></div>
-</div>
+function LoginScreen({ onLogin }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
 
-    <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6 flex gap-3">
-      <AlertCircle className="text-orange-600 flex-shrink-0" size={20} />
-      <div className="text-sm text-orange-800">
-        <p className="font-semibold mb-1">⚠️ Datos locales</p>
-        <p>Los datos se guardan en este navegador. Limpiar caché = perder datos.</p>
+    const ok = onLogin(username, password);
+
+    if (!ok) {
+      setError('Usuario o contraseña incorrectos.');
+      return;
+    }
+
+    setError('');
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-blue-800 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
+            {APP_NAME}
+          </h1>
+          <p className="text-gray-600 text-sm font-medium">{APP_TAGLINE}</p>
+          <div className="h-1 w-12 bg-gradient-to-r from-indigo-600 to-purple-600 mx-auto mt-4 rounded-full"></div>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-700">Usuario</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full border rounded-lg px-3 py-3"
+              placeholder="Introduce tu usuario"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2 text-gray-700">Contraseña</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border rounded-lg px-3 py-3"
+              placeholder="Introduce tu contraseña"
+            />
+          </div>
+
+          {error && <p className="text-red-600 text-sm">{error}</p>}
+
+          <button
+            type="submit"
+            className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
+          >
+            Entrar
+          </button>
+        </form>
       </div>
     </div>
-
-    <div className="space-y-3">
-      <button
-        onClick={onGoogleAuth}
-        className="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition"
-      >
-        Conectar con Google Drive
-      </button>
-
-      <button
-        onClick={onLocalLogin}
-        className="w-full bg-gray-200 text-gray-800 py-3 rounded-lg font-semibold hover:bg-gray-300 transition"
-      >
-        Modo Local
-      </button>
-
-      <button
-        onClick={onLoadDemo}
-        className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition"
-      >
-        Cargar Demo y Entrar
-      </button>
-    </div>
-  </div>
-</div>
-
-
-);
+  );
 }
 
 function DashboardPage({
@@ -3221,7 +3237,25 @@ saveToStorage(STORAGE_KEYS.expenses, demo.expenses);
 
 };
 
+const handleLogin = (username, password) => {
+  const validUsername = 'admin';
+  const validPassword = '1234';
 
+  if (username !== validUsername || password !== validPassword) {
+    return false;
+  }
+
+  const appUser = {
+    id: 'app-user',
+    name: COMPANY.legalName,
+    email: 'app@example.com',
+    authType: 'basic',
+  };
+
+  setUser(appUser);
+  saveToStorage(STORAGE_KEYS.user, appUser);
+  return true;
+};
 
 const handleLogout = () => {
 setUser(null);
@@ -3805,13 +3839,7 @@ setDeleteConfirmation(null);
 };
 
 if (!user) {
-return (
-<LoginScreen
-onGoogleAuth={handleGoogleAuth}
-onLocalLogin={handleLocalLogin}
-onLoadDemo={handleLoadDemo}
-/>
-);
+  return <LoginScreen onLogin={handleLogin} />;
 }
 
 return (
