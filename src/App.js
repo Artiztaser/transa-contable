@@ -626,7 +626,8 @@ const recentOutgoing = sortByDateDesc(
 ['issueDate']
 ).slice(0, 5);
 
-const yearOptions = ['2024', '2025', '2026', '2027'];
+const currentYear = new Date().getFullYear();
+const availableYears = Array.from({ length: 8 }, (_, i) => String(currentYear - 2 + i));
 
 return (
 <div className="space-y-6">
@@ -639,7 +640,7 @@ value={selectedPeriod}
 onChange={(e) => setSelectedPeriod(e.target.value)}
 className="border-2 border-gray-200 rounded-lg px-4 py-2.5 font-medium text-gray-700 hover:border-indigo-400 focus:border-indigo-500 focus:outline-none transition"
 >
-{yearOptions.map((year) => (
+{availableYears.map((year) => (
 <option key={year} value={year}>
 {year}
 </option>
