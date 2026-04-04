@@ -115,15 +115,16 @@ paymentStatus: 'pending',
 });
 
 const getDefaultExpenseForm = () => ({
-description: '',
-category: 'general',
-issueDate: getToday(),
-paymentDate: '',
-taxableBase: 0,
-taxPercentage: 21,
-notes: '',
-receiptName: '',
-hasReceipt: false,
+  description: '',
+  category: 'general',
+  issueDate: getToday(),
+ paymentDate: getToday(),
+  totalPaid: 0,
+  taxableBase: 0,
+  taxPercentage: 21,
+  notes: '',
+  receiptName: '',
+  hasReceipt: false,
 });
 
 const quarterMap = {
@@ -222,6 +223,38 @@ withholdingPercentage: whPct,
 withholdingAmount: round2(withholdingAmount),
 total: round2(total),
 };
+};
+const calculateExpenseTotalsFromTotal = ({ totalPaid, taxPercentage }) => {
+  const total = Number(totalPaid || 0);
+  const taxPct = Number(taxPercentage || 0);
+
+  if (total <= 0) {
+    return {
+      taxableBase: 0,
+      taxPercentage: taxPct,
+      taxAmount: 0,
+      total: 0,
+    };
+  }
+
+  if (taxPct <= 0) {
+    return {
+      taxableBase: round2(total),
+      taxPercentage: 0,
+      taxAmount: 0,
+      total: round2(total),
+    };
+  }
+
+  const base = total / (1 + taxPct / 100);
+  const taxAmount = total - base;
+
+  return {
+    taxableBase: round2(base),
+    taxPercentage: taxPct,
+    taxAmount: round2(taxAmount),
+    total: round2(total),
+  };
 };
 
 const getItemDate = (item) => item.issueDate || item.date || item.createdAt || null;
@@ -1248,12 +1281,12 @@ const [form, setForm] = useState(getDefaultInvoiceForm());
 const [validationErrors, setValidationErrors] = useState({});
 
 const liveTotals = useMemo(
-() =>
-calculateInvoiceTotals(
-form.items.filter((item) => item.description.trim() !== ''),
-form.retentionPercentage
-),
-[form]
+  () =>
+    calculateExpenseTotalsFromTotal({
+      totalPaid: form.totalPaid,
+      taxPercentage: form.taxPercentage,
+    }),
+  [form.totalPaid, form.taxPercentage]
 );
 
 const selectedClient = clients.find((c) => c.id === form.clientId);
@@ -1795,23 +1828,24 @@ className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 h
         </select>
 
         <div>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Base imponible"
-            value={form.taxableBase}
-            onChange={(e) =>
-              setForm({ ...form, taxableBase: Math.max(0, Number(e.target.value) || 0) })
-            }
-            className={`w-full border rounded px-3 py-2 ${
-              validationErrors.taxableBase ? 'border-red-500' : ''
-            }`}
-          />
-          {validationErrors.taxableBase && (
-            <p className="text-red-600 text-xs mt-1">{validationErrors.taxableBase}</p>
-          )}
-        </div>
+  <label className="block text-sm font-medium mb-2">Total pagado</label>
+  <input
+    type="number"
+    min="0"
+    step="0.01"
+    placeholder="Ej: 36.30"
+    value={form.totalPaid}
+    onChange={(e) =>
+      setForm({ ...form, totalPaid: Math.max(0, Number(e.target.value) || 0) })
+    }
+    className={`w-full border rounded px-3 py-2 ${
+      validationErrors.totalPaid ? 'border-red-500' : ''
+    }`}
+  />
+  {validationErrors.totalPaid && (
+    <p className="text-red-600 text-xs mt-1">{validationErrors.totalPaid}</p>
+  )}
+</div>
 
         <select
           value={form.taxPercentage}
@@ -2009,13 +2043,12 @@ const [searchTerm, setSearchTerm] = useState('');
 const [validationErrors, setValidationErrors] = useState({});
 
 const liveTotals = useMemo(
-() =>
-calculatePurchaseOrExpenseTotals({
-taxableBase: form.taxableBase,
-taxPercentage: form.taxPercentage,
-withholdingPercentage: 0,
-}),
-[form]
+  () =>
+    calculateExpenseTotalsFromTotal({
+      totalPaid: form.totalPaid,
+      taxPercentage: form.taxPercentage,
+    }),
+  [form.totalPaid, form.taxPercentage]
 );
 
 const handleSubmit = () => {
@@ -2026,14 +2059,12 @@ if (!form.description.trim()) {
   errors.description = 'La descripción es obligatoria.';
 }
 
-if (Number(form.taxableBase) <= 0) {
-  errors.taxableBase = 'La base imponible debe ser mayor a 0.';
+if (Number(form.totalPaid) <= 0) {
+  errors.totalPaid = 'El total pagado debe ser mayor a 0.';
 }
 
 // ✅ MEJORA 4: Validar que fecha de pago <= hoy
-if (form.paymentDate && new Date(form.paymentDate) > new Date(getToday())) {
-  errors.paymentDate = 'La fecha de pago no puede ser futura.';
-}
+
 
 setValidationErrors(errors);
 if (Object.keys(errors).length > 0) return;
@@ -2077,106 +2108,115 @@ className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 h
     <div className="bg-white rounded-lg shadow p-6 space-y-4">
       <h3 className="font-bold text-lg">Registrar gasto</h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        <div>
-          <input
-            type="text"
-            placeholder="Descripción *"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.target.value })}
-            className={`w-full border rounded px-3 py-2 ${
-              validationErrors.description ? 'border-red-500' : ''
-            }`}
-          />
-          {validationErrors.description && (
-            <p className="text-red-600 text-xs mt-1">{validationErrors.description}</p>
-          )}
-        </div>
-
-        <select
-          value={form.category}
-          onChange={(e) => setForm({ ...form, category: e.target.value })}
-          className="border rounded px-3 py-2"
-        >
-          <option value="general">General</option>
-          <option value="office">Oficina</option>
-          <option value="travel">Viaje</option>
-          <option value="software">Software</option>
-          <option value="supplies">Suministros</option>
-          <option value="utilities">Servicios</option>
-        </select>
-
-        <input
-          type="date"
-          value={form.issueDate}
-          onChange={(e) => setForm({ ...form, issueDate: e.target.value })}
-          className="border rounded px-3 py-2"
-        />
-
-        <input
-          type="date"
-          value={form.paymentDate}
-          onChange={(e) => setForm({ ...form, paymentDate: e.target.value })}
-          className={`border rounded px-3 py-2 ${
-            validationErrors.paymentDate ? 'border-red-500' : ''
-          }`}
-        />
-        {validationErrors.paymentDate && (
-          <p className="text-red-600 text-xs mt-1">{validationErrors.paymentDate}</p>
-        )}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
+        <div className="md:col-span-2 lg:col-span-5">
+  <label className="block text-sm font-medium mb-2">Descripción</label>
+  <textarea
+    rows={3}
+    placeholder="Describe el gasto..."
+    value={form.description}
+    onChange={(e) => setForm({ ...form, description: e.target.value })}
+    className={`w-full border rounded px-3 py-3 ${
+      validationErrors.description ? 'border-red-500' : ''
+    }`}
+  />
+  {validationErrors.description && (
+    <p className="text-red-600 text-xs mt-1">{validationErrors.description}</p>
+  )}
+</div>
 
         <div>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Base imponible"
-            value={form.taxableBase}
-            onChange={(e) =>
-              setForm({ ...form, taxableBase: Math.max(0, Number(e.target.value) || 0) })
-            }
-            className={`w-full border rounded px-3 py-2 ${
-              validationErrors.taxableBase ? 'border-red-500' : ''
-            }`}
-          />
-          {validationErrors.taxableBase && (
-            <p className="text-red-600 text-xs mt-1">{validationErrors.taxableBase}</p>
-          )}
-        </div>
+  <label className="block text-sm font-medium mb-2">Categoría</label>
+  <select
+    value={form.category}
+    onChange={(e) => setForm({ ...form, category: e.target.value })}
+    className="w-full border rounded px-3 py-2"
+  >
+    <option value="general">General</option>
+    <option value="office">Oficina</option>
+    <option value="travel">Viaje</option>
+    <option value="software">Software</option>
+    <option value="supplies">Suministros</option>
+    <option value="utilities">Servicios</option>
+  </select>
+</div>
 
-        <select
-          value={form.taxPercentage}
-          onChange={(e) => setForm({ ...form, taxPercentage: Number(e.target.value) })}
-          className="border rounded px-3 py-2"
-        >
-          <option value={0}>IVA 0% (Exento)</option>
-          <option value={4}>IVA 4% (Reducido)</option>
-          <option value={10}>IVA 10% (Reducido)</option>
-          <option value={21}>IVA 21% (Estándar)</option>
-        </select>
+        <div>
+  <label className="block text-sm font-medium mb-2">Fecha del gasto</label>
+  <input
+    type="date"
+    value={form.issueDate}
+    onChange={(e) =>
+      setForm({
+        ...form,
+        issueDate: e.target.value,
+        paymentDate: e.target.value,
+      })
+    }
+    className="w-full border rounded px-3 py-2"
+  />
+</div>
 
-        <input
-          type="file"
-          accept="image/*,application/pdf"
-          onChange={(e) =>
-            setForm({
-              ...form,
-              receiptName: e.target.files?.[0]?.name || '',
-              hasReceipt: Boolean(e.target.files?.[0]),
-            })
-          }
-          className="border rounded px-3 py-2"
-        />
+        <div>
+  <label className="block text-sm font-medium mb-2">Total pagado</label>
+  <input
+    type="number"
+    min="0"
+    step="0.01"
+    placeholder="Ej: 36.30"
+    value={form.totalPaid}
+    onChange={(e) =>
+      setForm({ ...form, totalPaid: Math.max(0, Number(e.target.value) || 0) })
+    }
+    className={`w-full border rounded px-3 py-2 ${
+      validationErrors.totalPaid ? 'border-red-500' : ''
+    }`}
+  />
+  {validationErrors.totalPaid && (
+    <p className="text-red-600 text-xs mt-1">{validationErrors.totalPaid}</p>
+  )}
+</div>
 
-        {/* ✅ MEJORA 5: Mejor UX para receiptName */}
-        <input
-          type="text"
-          value={form.receiptName}
-          readOnly
-          placeholder="Sin archivo seleccionado"
-          className="border rounded px-3 py-2 bg-gray-100 text-gray-600 cursor-not-allowed"
-          title="Se llena automáticamente al seleccionar un archivo"
-        />
+        <div>
+  <label className="block text-sm font-medium mb-2">IVA</label>
+  <select
+    value={form.taxPercentage}
+    onChange={(e) => setForm({ ...form, taxPercentage: Number(e.target.value) })}
+    className="w-full border rounded px-3 py-2"
+  >
+    <option value={0}>IVA 0% (Exento)</option>
+    <option value={4}>IVA 4% (Reducido)</option>
+    <option value={10}>IVA 10% (Reducido)</option>
+    <option value={21}>IVA 21% (Estándar)</option>
+  </select>
+</div>
+
+        <div className="xl:col-span-2 bg-gray-50 border rounded-lg p-4 space-y-3">
+  <div>
+    <label className="block text-sm font-medium mb-2">Ticket / recibo</label>
+    <input
+      type="file"
+      accept="image/*,application/pdf"
+      onChange={(e) =>
+        setForm({
+          ...form,
+          receiptName: e.target.files?.[0]?.name || '',
+          hasReceipt: Boolean(e.target.files?.[0]),
+        })
+      }
+      className="w-full border rounded px-3 py-2 bg-white"
+    />
+  </div>
+
+  <div>
+    <p className="text-xs text-gray-500 mb-1">Archivo seleccionado</p>
+    <p className="text-sm font-medium text-gray-700">
+      {form.receiptName || 'Sin archivo seleccionado'}
+    </p>
+  </div>
+
+
+</div>
       </div>
 
       <textarea
